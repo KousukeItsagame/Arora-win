@@ -1,4 +1,31 @@
 ; Copyright 2008 Jason A. Donenfeld <Jason@zx2c4.com>
+; Edited By Kousuke March 2011
+
+; For fulfilling the dependencies of arora you need ieshims.dll
+; This file changed directory since internet explorer 8
+; The new directory is \program files\internet explorer\
+; In this script I added the directory to the path so this file can be accessed
+; Firefox needs this dll as well
+; When adding things to PATH admin privileges are required sadly
+; I also fixed a bug when removing shortcut
+
+;prerequisites:
+;an already build arora source
+;an already build qt source
+;an already build openssl
+;killproc_dll download http://nsis.sourceforge.net/KillProcDLL_plug-in
+;envarupdate.nsh download http://nsis.sourceforge.net/mediawiki/images/a/ad/EnvVarUpdate.7z
+;the correct msvc redistributable according the compiler you used
+;the redistributable file can be downloaded from microsoft website)
+;check if paths to files are correct
+;renaming installer to the version you use
+
+;changelog:
+;release unofficial windowsinstaller2.nsi
+;add ieshims.dll to path
+;add admin rights for windows vista/7
+;renamed needed programs to latest version
+;using MUI2 for better look installer
 
 SetCompressor /SOLID /FINAL lzma
 
@@ -8,9 +35,9 @@ SetCompressor /SOLID /FINAL lzma
 !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\arora.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define PRODUCT_UNINST_ROOT_KEY "HKLM"
-!define QTDIR "C:\Qt\qt-all-opensource-src-4.5.3"
+!define QTDIR "C:\Qt471\"
 
-!include "MUI.nsh"
+!include "MUI2.nsh"
 !define MUI_ABORTWARNING
 !define MUI_ICON ".\src\browser.ico"
 !define MUI_UNICON ".\src\browser.ico"
@@ -32,6 +59,20 @@ InstallDirRegKey HKLM "${PRODUCT_DIR_REGKEY}" ""
 ShowInstDetails show
 ShowUnInstDetails show
 
+;Needed for windows vista and 7
+;http://nsis.sourceforge.net/Shortcuts_removal_fails_on_Windows_Vista
+
+;install files as admin
+RequestExecutionLevel admin
+
+;path manipulation headers
+!include "LogicLib.nsh"
+!include "EnvVarUpdate.nsh" 
+
+Section "Add to Path"
+	 ${EnvVarUpdate} $0 "PATH" "A" "HKLM" "%PROGRAMFILES%\Internet Explorer"
+SectionEnd
+
 Section "Main Components"
   KillProcDLL::KillProc "arora.exe"
   Sleep 100
@@ -49,14 +90,14 @@ Section "Main Components"
   File "${QTDIR}\lib\QtScript4.dll"
   File "${QTDIR}\lib\QtSql4.dll"
   ;File "${QTDIR}\lib\phonon4.dll"
-  File "C:\Qt\openssl-0.9.8j\out32dll\ssleay32.dll"
-  File "C:\Qt\openssl-0.9.8j\out32dll\libeay32.dll"
+  File "C:\arorasdk\openssl-1.0.0c\out32dll\ssleay32.dll"
+  File "C:\arorasdk\openssl-1.0.0c\out32dll\libeay32.dll"
 
   SetOutPath "$INSTDIR\locale"
   File "src\.qm\locale\*.qm"
   File "${QTDIR}\translations\qt*.qm"
 
-  SetOutPath "$INSTDIR\plugins\sqldrivers"
+  SetOutPath "$INSTDIR\sqldrivers"
   File "${QTDIR}\plugins\sqldrivers\qsqlite4.dll"
 
   SetOutPath "$INSTDIR\imageformats"
@@ -77,10 +118,12 @@ Section "Main Components"
   File "${QTDIR}\plugins\codecs\qcncodecs4.dll"
 
   SetOutPath "$INSTDIR\phonon_backend"
-;  File "${QTDIR}\plugins\phonon_backend\phonon_ds94.dll"
+  File "${QTDIR}\plugins\phonon_backend\phonon_ds94.dll"
 SectionEnd
 
 Section Icons
+  ;Needed when using admin rights vista/7
+  SetShellVarContext all
   CreateShortCut "$SMPROGRAMS\Arora.lnk" "$INSTDIR\arora.exe"
 SectionEnd
 
@@ -96,18 +139,24 @@ SectionEnd
 Section MSVC
   InitPluginsDir
   SetOutPath $PLUGINSDIR
-  File "C:\Program Files\Microsoft Visual Studio 8\SDK\v2.0\BootStrapper\Packages\vcredist_x86\vcredist_x86.exe"
-  DetailPrint "Installing Visual C++ 2005 Libraries"
+
+  File "C:\msvc\vcredist2010\vcredist_x86.exe"
+  DetailPrint "Installing Visual C++ 2010 Libraries"
   ExecWait '"$PLUGINSDIR\vcredist_x86.exe" /q:a /c:"msiexec /i vcredist.msi /quiet"'
 SectionEnd
 
 Section Uninstall
   KillProcDLL::KillProc "arora.exe"
   Sleep 100
-  Delete $SMPROGRAMS\Arora.lnk
+  ;needed when using admin rights vista/7
+  SetShellVarContext all
+  Delete "$SMPROGRAMS\Arora.lnk"
+  ${Un.EnvVarUpdate} $0 "PATH" "R" "HKLM" "%PROGRAMFILES%\Internet Explorer"
+  Delete "$INSTDIR\Uninst.exe"
   RMDir /r "$INSTDIR"
   DeleteRegKey ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}"
   DeleteRegKey HKLM "${PRODUCT_DIR_REGKEY}"
+   
 SectionEnd
 
 BrandingText "arora-browser.org"
